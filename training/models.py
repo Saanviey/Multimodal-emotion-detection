@@ -63,9 +63,10 @@ class AudioEncoder(nn.Module):
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(1)
         )
-
-        for param in self.conv_layers.parameters():
-            param.requires_grad = False
+        
+        #audio CNN is randomly initialized, not pretrained ,unfreeze to allow audio encoder to learn from meld audio 
+        # for param in self.conv_layers.parameters():
+        #     param.requires_grad = False  
 
         self.projection = nn.Sequential(
             nn.Linear(128, 128),
