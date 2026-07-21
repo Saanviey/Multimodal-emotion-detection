@@ -248,6 +248,8 @@ class MultimodalTrainer:
             torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(), max_norm=1.0)
             
+            self.optimizer.step() #update weights
+            
              # Track losses
             running_loss['total'] += total_loss.item()
             running_loss['emotion'] += emotion_loss.item()
@@ -263,7 +265,7 @@ class MultimodalTrainer:
 
         return {k: v/len(self.train_loader) for k, v in running_loss.items()}
     
-    def validate(self, data_loader, phase="val"):
+    def evaluate(self, data_loader, phase="val"):
         self.model.eval()
         losses = {'total': 0, 'emotion': 0, 'sentiment': 0}
         all_emotion_preds = []
@@ -272,7 +274,7 @@ class MultimodalTrainer:
         all_sentiment_labels = []
 
         with torch.inference_mode():
-            for batch in self.val_loader:
+            for batch in data_loader: #fix
                 device = next(self.model.parameters()).device
                 text_inputs = {
                     'input_ids': batch['text_inputs']['input_ids'].to(device),

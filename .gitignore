@@ -2,3 +2,10 @@ dataset/
 MELD.Raw.tar.gz
 __pycache__/
 *.pycgit 
+.venv/
+runs/
+dataset/
+models/
+.vscode/
+__pycache__/
+*.pyc

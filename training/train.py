@@ -17,7 +17,7 @@ SM_CHANNEL_TEST = os.environ.get("SM_CHANNEL_TEST","opt/ml/input/data/test")
 
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = "expandable_segments:True"
            
-def pargs_args():
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=16)
@@ -32,14 +32,18 @@ def pargs_args():
     return parser.parse_args()
 
 def main():
-    if not install_ffmpeg():
-        print("Error: FFmpeg installation failed. Cannot continue training.")
-        sys.exit(1)
+    #kaggle has ffmpeg installations / no need for manual installation
+
+    # if not install_ffmpeg():
+    #     print("Error: FFmpeg installation failed. Cannot continue training.")
+    #     sys.exit(1)
 
     print("Available audio backends:")
     print(str(torchaudio.list_audio_backends()))
 
     args = parse_args()
+    #for safer local/kaggle testing 
+    os.makedirs(args.model_dir, exist_ok=True) #avoid crash when saving model.pth
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Track initial GPU memory if available
