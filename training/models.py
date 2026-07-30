@@ -334,8 +334,6 @@ class MultimodalTrainer:
 
 
 
-
-
 if __name__ == "__main__":
     dataset = MELDDataset('../dataset/train/train_sent_emo.csv', '../dataset/train/train_splits')
     

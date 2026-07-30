@@ -1,0 +1,102 @@
+general architecture -->       
+               
+                            
+                Raw Data
+                   │
+        ┌──────────┼──────────┐
+        │          │          │
+     Video       Audio       Text
+        │          │          │
+        ▼          ▼          ▼
+Preprocessing Preprocessing Tokenization
+        │          │          │
+        ▼          ▼          ▼
+[30,3,224,224] [1,64,300] [token ids]
+        │          │          │
+        └──────────┼──────────┘
+                   │
+               Encoders
+                   │
+        ┌──────────┼──────────┐
+        ▼          ▼          ▼
+     128-D      128-D      128-D
+      Video      Audio       Text
+     Feature     Feature    Feature
+      Vector      Vector     Vector
+        └──────────┼──────────┘
+                   │
+               Fusion Layer
+                   │
+            Combined Feature
+                   │
+            Classification Head
+                   │
+          Emotion / Label Output
+
+
+dataset Preprocessing pipeline -->
+
+CSV Row
+        │
+        ▼
+Dialogue_ID
+Utterance_ID
+Text
+Emotion
+Sentiment
+        │
+        ▼
+Find video file
+        │
+        ▼
+Load Video
+        │
+        ▼
+30 Frames Tensor
+[30,3,224,224]
+        │
+        ▼
+Extract Audio
+        │
+        ▼
+Mel Spectrogram
+[1,64,300]
+        │
+        ▼
+Tokenize Text
+input_ids
+attention_mask
+        │
+        ▼
+Map Labels
+Happy → 0
+Positive → 1
+        │
+        ▼
+__getitem__()
+returns ONE sample
+        │
+        ▼
+DataLoader asks for
+32 samples
+        │
+        ▼
+collate_fn
+removes broken samples
+        │
+        ▼
+default_collate
+stacks everything
+        │
+        ▼
+One Batch
+        │
+        ├── Text      [32,128]
+        ├── Video     [32,30,3,224,224]
+        ├── Audio     [32,1,64,300]
+        ├── Emotion   [32]
+        └── Sentiment [32]
+        │
+        ▼
+ This batch is finally fed into the multimodal model.
+

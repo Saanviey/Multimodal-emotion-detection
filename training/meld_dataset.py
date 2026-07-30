@@ -34,7 +34,9 @@ class MELDDataset:
         }
     
     def _load_video_frames(self,video_path):
+         #open cv to read video frames 
          cap = cv2.VideoCapture(video_path)
+         #empty frame list to collect frames later on
          frames = []
 
          try:
@@ -42,7 +44,7 @@ class MELDDataset:
                    raise ValueError(f"Video not found: {video_path}")
               
               # Try and read first frame to validate video
-              ret, frame = cap.read()
+              ret, frame = cap.read()  #ret->bool value (true/false if frame found/not found) , frame->actual frame stored as numbers 
               if not ret or frame is None:
                 raise ValueError(f"Video not found: {video_path}")
               
@@ -53,8 +55,10 @@ class MELDDataset:
                 ret, frame = cap.read()
                 if not ret:
                     break
-
+                
+                #compress to standard frame size 224 X224
                 frame = cv2.resize(frame, (224, 224))
+
                 frame = frame / 255.0
                 frames.append(frame)
 
@@ -75,26 +79,30 @@ class MELDDataset:
 
         # Before permute: [frames, height, width, channels]
         # After permute: [frames, channels, height, width]
+        #output tensor = [30 , 3, 224 , 224]
          return torch.FloatTensor(np.array(frames)).permute(0, 3, 1, 2)
     
     def _extract_audio_features(self, video_path):
         os.makedirs("/kaggle/working/tmp", exist_ok=True)
         audio_path = os.path.join("/kaggle/working/tmp", os.path.basename(video_path).replace(".mp4", ".wav"))
         # audio_path = video_path.replace('.mp4', '.wav')
-
+        
+        #ffmpeg to read audio (separate audio/video streams (ignore video))
         try:
             subprocess.run([
                 'ffmpeg',
                 '-i', video_path,
-                '-vn',
+                '-vn',   #ignore video stream
                 '-acodec', 'pcm_s16le',
                 '-ar', '16000',
                 '-ac', '1',
                 audio_path
             ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
+            
+            #convert raw audio to .wav file , load the wav file
             waveform, sample_rate = torchaudio.load(audio_path)
-
+            
+            #convert to standard sample rates , 1 sec --> 16000 numbered array
             if sample_rate != 16000:
                 resampler = torchaudio.transforms.Resample(sample_rate, 16000)
                 waveform = resampler(waveform)
@@ -108,7 +116,7 @@ class MELDDataset:
 
             mel_spec = mel_spectrogram(waveform)
 
-            # Normalize
+            # Normalize (squeeze values on the basis of avg (0) and std (max 1);
             mel_spec = (mel_spec - mel_spec.mean()) / mel_spec.std()
 
             if mel_spec.size(2) < 300:
@@ -117,6 +125,7 @@ class MELDDataset:
             else:
                 mel_spec = mel_spec[:, :, :300]
 
+            #output tensor [1 , 64 , 300]
             return mel_spec
          
          
@@ -130,22 +139,26 @@ class MELDDataset:
 
     def __len__(self):
             return len(self.data)
-        
+
+    #to get one sample as dict    
     def __getitem__(self,idx):
         if isinstance(idx, torch.Tensor):
             idx = idx.item()
+        #extract the 'idx' row (dict) from csv    
         row = self.data.iloc[idx]
 
         try: 
             video_filename = f"""dia{row['Dialogue_ID']}_utt{
               row['Utterance_ID']}.mp4"""
-            
+
+            #eg: /videos + dia8_utt4.mp4 --> /videos/dia8_utt4.mp4 
             path = os.path.join(self.video_dir,video_filename)
-            video_path_exists = os.path.exists(path)
+            video_path_exists = os.path.exists(path) #path existence check
 
             if video_path_exists == False:
                 raise FileNotFoundError(f"No video found for filename: {path}")
             
+            #text processing 
             text_inputs = self.tokenizer(row['Utterance'],
                                          padding='max_length', 
                                          truncation=True,
@@ -172,12 +185,15 @@ class MELDDataset:
         except Exception as e:
             print(f"Error processing {path}: {str(e)}")
             return None
-    
+
+
+
 def collate_fn(batch):
        # Filter oout None samples
        batch = list(filter(None, batch))
        return torch.utils.data.dataloader.default_collate(batch)
-        
+
+
 def prepare_dataloaders(train_csv, train_video_dir,
                         dev_csv, dev_video_dir,test_csv, 
                         test_video_dir, batch_size=32):
