@@ -17,7 +17,7 @@ class TextEncoder(nn.Module):
         self.bert = BertModel.from_pretrained(pretrained_model_name) #self is just a reference to that specific object — "this particular instance of the class, right here.
 
         for param in self.bert.parameters():
-            param.requires_grad = False #freezw
+            param.requires_grad = False 
 
         self.projection = nn.Linear(768,128)
 
@@ -65,8 +65,8 @@ class AudioEncoder(nn.Module):
         )
         
         #audio CNN is randomly initialized, not pretrained ,unfreeze to allow audio encoder to learn from meld audio 
-        # for param in self.conv_layers.parameters():
-        #     param.requires_grad = False  
+        for param in self.conv_layers.parameters():
+            param.requires_grad = False  
 
         self.projection = nn.Sequential(
             nn.Linear(128, 128),
