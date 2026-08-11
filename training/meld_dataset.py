@@ -195,26 +195,28 @@ def collate_fn(batch):
 
 
 def prepare_dataloaders(train_csv, train_video_dir,
-                        dev_csv, dev_video_dir,
-                        test_csv, test_video_dir, batch_size=32):
-    train_dataset = MELDDataset(train_csv, train_video_dir)
-    dev_dataset = MELDDataset(dev_csv, dev_video_dir)
-    test_dataset = MELDDataset(test_csv, test_video_dir)
+                        dev_csv, dev_video_dir,test_csv, 
+                        test_video_dir, batch_size=32):
+         train_dataset = MELDDataset(train_csv, train_video_dir)
+         dev_dataset = MELDDataset(dev_csv, dev_video_dir)
+         test_dataset = MELDDataset(test_csv, test_video_dir)
+         train_loader = DataLoader(train_dataset,
+                        batch_size=batch_size,
+                        shuffle=True,
+                        num_workers=4,
+                        collate_fn=collate_fn)
 
-    train_loader = DataLoader(train_dataset,
-                              batch_size=batch_size,
-                              shuffle=True,
-                              collate_fn=collate_fn)
+         dev_loader = DataLoader(dev_dataset,
+                        batch_size=batch_size,
+                        num_workers=2,
+                        collate_fn=collate_fn)
 
-    dev_loader = DataLoader(dev_dataset,
-                            batch_size=batch_size,
-                            collate_fn=collate_fn)
-
-    test_loader = DataLoader(test_dataset,
-                             batch_size=batch_size,
-                             collate_fn=collate_fn)
-
-    return train_loader, dev_loader, test_loader
+         test_loader = DataLoader(test_dataset,
+                       batch_size=batch_size,
+                       num_workers=2,
+                       collate_fn=collate_fn)
+         
+         return train_loader, dev_loader, test_loader
 
 
 if __name__ == "__main__":

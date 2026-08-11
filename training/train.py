@@ -8,7 +8,7 @@ import json
 
 from meld_dataset import prepare_dataloaders
 from models import MultimodalSentimentModel, MultimodalTrainer
-from install_ffmpeg import install_ffmpeg
+# from install_ffmpeg import install_ffmpeg
 
 SM_MODEL_DIR = os.environ.get("SM_MODEL_DIR", ".")
 
