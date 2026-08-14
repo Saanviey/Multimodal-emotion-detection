@@ -140,6 +140,7 @@ class MultimodalSentimentModel(nn.Module):
         }
     
 
+#class imbalance fix
 def compute_class_weights(dataset):
     emotion_counts = torch.zeros(7)
     sentiment_counts = torch.zeros(3)

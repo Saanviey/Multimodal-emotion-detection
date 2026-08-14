@@ -98,12 +98,6 @@ MELD.Raw/
 
 **Checkpointing:** best model (by validation loss) is saved during training, not necessarily the final epoch, to avoid keeping an overfit late-stage model.
 
-## Infrastructure
-
-- Trained on **Kaggle Notebooks** (T4 GPU, free tier) — no local GPU available.
-- Dataset hosted as a Kaggle Dataset, accessed read-only at `/kaggle/input/`.
-- Code cloned from GitHub into each session (`/kaggle/working/`), since Kaggle session storage does not persist across sessions.
-
 ## Results (in progress)
 
 A 17-epoch run (batch size 16) showed a consistent downward loss trend and improving validation metrics:
