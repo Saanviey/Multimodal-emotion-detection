@@ -1,5 +1,5 @@
 
-# Multimodal Emotion Detection
+# Multimodal Emotion-Sentiment Detection
 
 A trimodal (text + video + audio) emotion and sentiment classification system, trained on the MELD benchmark. This project investigates whether fusing text, video, and audio signals outperforms any single modality alone for emotion recognition in conversational speech.
 
