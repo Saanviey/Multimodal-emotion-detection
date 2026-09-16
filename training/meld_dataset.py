@@ -203,17 +203,17 @@ def prepare_dataloaders(train_csv, train_video_dir,
          train_loader = DataLoader(train_dataset,
                         batch_size=batch_size,
                         shuffle=True,
-                        num_workers=4,
+                        num_workers=2,
                         collate_fn=collate_fn)
 
          dev_loader = DataLoader(dev_dataset,
                         batch_size=batch_size,
-                        num_workers=2,
+                        num_workers=1,
                         collate_fn=collate_fn)
 
          test_loader = DataLoader(test_dataset,
                        batch_size=batch_size,
-                       num_workers=2,
+                       num_workers=1,
                        collate_fn=collate_fn)
          
          return train_loader, dev_loader, test_loader
