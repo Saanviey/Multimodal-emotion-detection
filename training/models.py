@@ -14,19 +14,24 @@ from meld_dataset import MELDDataset
 class TextEncoder(nn.Module):
     def __init__(self, pretrained_model_name='bert-base-uncased'):
         super().__init__()
+        #make a seprate bert model object exported from hf transformers
         self.bert = BertModel.from_pretrained(pretrained_model_name) #self is just a reference to that specific object — "this particular instance of the class, right here.
 
+        #extracts all the trainable parameters in bert and freezes them
         for param in self.bert.parameters():
             param.requires_grad = False 
 
+        #projection layer to compress semantically useful data downstream from 768 vector size to 128
         self.projection = nn.Linear(768,128)
 
+    #forward pass for text encoder ,takes in actual tokenised input id vector and attention mask corresponding to it ([1,1,1,0]) like vector telling where padding starts
     def forward(self, input_ids, attention_mask):
          outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
          # Use [CLS] token representation
          pooler_output = outputs.pooler_output
 
          return self.projection(pooler_output)
+
 
 class VideoEncoder(nn.Module):
     def __init__(self):
@@ -81,6 +86,7 @@ class AudioEncoder(nn.Module):
         # Features output: [batch_size, 128, 1]
 
         return self.projection(features.squeeze(-1))
+
 
 class MultimodalSentimentModel(nn.Module):
     def __init__(self):

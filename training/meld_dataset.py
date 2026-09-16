@@ -83,8 +83,8 @@ class MELDDataset:
          return torch.FloatTensor(np.array(frames)).permute(0, 3, 1, 2)
     
     def _extract_audio_features(self, video_path):
-        os.makedirs("/kaggle/working/tmp", exist_ok=True)
-        audio_path = os.path.join("/kaggle/working/tmp", os.path.basename(video_path).replace(".mp4", ".wav"))
+        os.makedirs("/content/tmp", exist_ok=True)
+        audio_path = os.path.join("/content/tmp", os.path.basename(video_path).replace(".mp4", ".wav"))
         # audio_path = video_path.replace('.mp4', '.wav')
         
         #ffmpeg to read audio (separate audio/video streams (ignore video))

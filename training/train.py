@@ -33,11 +33,6 @@ def parse_args():
 
 
 def main():
-    # kaggle has ffmpeg installations / no need for manual installation
-
-    # if not install_ffmpeg():
-    #     print("Error: FFmpeg installation failed. Cannot continue training.")
-    #     sys.exit(1)
 
     print("Available audio backends:")
     try:
@@ -70,8 +65,19 @@ def main():
     print(f"Training video directory: {args.train_video_dir}")
 
     model = MultimodalSentimentModel().to(device)
-    trainer = MultimodalTrainer(model, train_loader, val_loader)
+
+    # Resume from last checkpoint if it exists (survives session drops)
+    ckpt_path = os.path.join(args.model_dir, "model.pth")
+    start_epoch = 0
     best_val_loss = float('inf')
+    if os.path.exists(ckpt_path):
+        checkpoint = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(checkpoint["model_state"])
+        start_epoch = checkpoint["epoch"] + 1
+        best_val_loss = checkpoint["best_val_loss"]
+        print(f"Resumed from epoch {start_epoch}, best_val_loss={best_val_loss:.4f}")
+
+    trainer = MultimodalTrainer(model, train_loader, val_loader)
 
     metrics_data = {
         "train_losses": [],
@@ -79,7 +85,7 @@ def main():
         "epochs": []
     }
 
-    for epoch in tqdm(range(args.epochs), desc="Epochs"):
+    for epoch in tqdm(range(start_epoch, args.epochs), desc="Epochs"):
         train_loss = trainer.train_epoch()
         val_loss, val_metrics = trainer.evaluate(val_loader)
 
@@ -88,7 +94,7 @@ def main():
         metrics_data["val_losses"].append(val_loss["total"])
         metrics_data["epochs"].append(epoch)
 
-        # Log metrics in SageMaker format
+        # Log metrics 
         print(json.dumps({
             "metrics": [
                 {"Name": "train:loss", "Value": train_loss["total"]},
@@ -108,11 +114,15 @@ def main():
             memory_used = torch.cuda.max_memory_allocated() / 1024**3
             print(f"Peak GPU memory used: {memory_used:.2f} GB")
 
-        # Save best model
+        # Save every epoch (not just best) so a resume never loses progress
         if val_loss["total"] < best_val_loss:
             best_val_loss = val_loss["total"]
-            torch.save(model.state_dict(), os.path.join(
-                args.model_dir, "model.pth"))
+        torch.save({
+            "epoch": epoch,
+            "model_state": model.state_dict(),
+            "optimizer_state": trainer.optimizer.state_dict(),
+            "best_val_loss": best_val_loss,
+        }, ckpt_path)
 
     # After training is complete, evaluate on test set
     print("Evaluating on test set...")
