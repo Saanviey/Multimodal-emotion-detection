@@ -1,6 +1,8 @@
 import os
 import argparse
 import sys
+import subprocess as sp
+import json as pyjson
 import torch
 import torchaudio
 from tqdm import tqdm
@@ -11,6 +13,7 @@ from models import MultimodalSentimentModel, MultimodalTrainer
 # from install_ffmpeg import install_ffmpeg
 
 SM_MODEL_DIR = os.environ.get("SM_MODEL_DIR", ".")
+KAGGLE_CHECKPOINT_DATASET = "saanvie/meld-checkpoints"
 
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = "expandable_segments:True"
 
@@ -30,6 +33,24 @@ def parse_args():
     parser.add_argument("--model-dir", type=str, default=SM_MODEL_DIR)
 
     return parser.parse_args()
+
+
+def push_checkpoint_to_kaggle(model_dir, dataset_slug, message):
+    # Writes dataset metadata and pushes model_dir as a new dataset version.
+    # check=False so a failed push (e.g. no internet, quota) never crashes training.
+    meta = {
+        "title": "meld-checkpoints",
+        "id": dataset_slug,
+        "licenses": [{"name": "CC0-1.0"}]
+    }
+    with open(os.path.join(model_dir, "dataset-metadata.json"), "w") as f:
+        pyjson.dump(meta, f)
+    sp.run([
+        "kaggle", "datasets", "version",
+        "-p", model_dir,
+        "-m", message,
+        "-r", "zip"
+    ], check=False)
 
 
 def main():
@@ -94,7 +115,7 @@ def main():
         metrics_data["val_losses"].append(val_loss["total"])
         metrics_data["epochs"].append(epoch)
 
-        # Log metrics 
+        # Log metrics
         print(json.dumps({
             "metrics": [
                 {"Name": "train:loss", "Value": train_loss["total"]},
@@ -123,6 +144,14 @@ def main():
             "optimizer_state": trainer.optimizer.state_dict(),
             "best_val_loss": best_val_loss,
         }, ckpt_path)
+
+        # Push checkpoint to Kaggle Dataset every 3 epochs for crash-proof persistence
+        if (epoch + 1) % 3 == 0 or epoch == args.epochs - 1:
+            push_checkpoint_to_kaggle(
+                args.model_dir,
+                KAGGLE_CHECKPOINT_DATASET,
+                f"checkpoint at epoch {epoch}"
+            )
 
     # After training is complete, evaluate on test set
     print("Evaluating on test set...")
