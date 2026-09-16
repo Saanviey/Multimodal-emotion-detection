@@ -100,11 +100,18 @@ def main():
 
     trainer = MultimodalTrainer(model, train_loader, val_loader)
 
-    metrics_data = {
-        "train_losses": [],
-        "val_losses": [],
-        "epochs": []
-    }
+    # Resume metrics history too, so it isn't reset on a crash/resume
+    metrics_path = os.path.join(args.model_dir, "metrics_history.json")
+    if os.path.exists(metrics_path):
+        with open(metrics_path) as f:
+            metrics_data = json.load(f)
+        print(f"Resumed metrics history ({len(metrics_data['epochs'])} epochs logged so far)")
+    else:
+        metrics_data = {
+            "train_losses": [],
+            "val_losses": [],
+            "epochs": []
+        }
 
     for epoch in tqdm(range(start_epoch, args.epochs), desc="Epochs"):
         train_loss = trainer.train_epoch()
@@ -145,6 +152,10 @@ def main():
             "best_val_loss": best_val_loss,
         }, ckpt_path)
 
+        # Persist metrics history as JSON for later analysis/plotting
+        with open(metrics_path, "w") as f:
+            json.dump(metrics_data, f, indent=2)
+
         # Push checkpoint to Kaggle Dataset every 3 epochs for crash-proof persistence
         if (epoch + 1) % 3 == 0 or epoch == args.epochs - 1:
             push_checkpoint_to_kaggle(
@@ -157,6 +168,10 @@ def main():
     print("Evaluating on test set...")
     test_loss, test_metrics = trainer.evaluate(test_loader, phase="test")
     metrics_data["test_loss"] = test_loss["total"]
+
+    # Persist final metrics (including test results) too
+    with open(metrics_path, "w") as f:
+        json.dump(metrics_data, f, indent=2)
 
     print(json.dumps({
         "metrics": [
