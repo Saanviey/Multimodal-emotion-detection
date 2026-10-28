@@ -217,6 +217,11 @@ def main():
             )
 
     # After training is complete, evaluate on test set
+    # Load the best model first, otherwise the test runs on whatever the last epoch left in memory
+    if os.path.exists(best_model_path):
+        best = torch.load(best_model_path, map_location=device)
+        model.load_state_dict(best["model_state"])
+        print(f"Loaded best model from epoch {best['epoch']} for test evaluation")
     print("Evaluating on test set...")
     test_loss, test_metrics = trainer.evaluate(test_loader, phase="test")
     metrics_data["test_loss"] = test_loss["total"]
