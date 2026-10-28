@@ -203,6 +203,7 @@ def prepare_dataloaders(train_csv, train_video_dir,
          train_loader = DataLoader(train_dataset,
                         batch_size=batch_size,
                         shuffle=True,
+                        drop_last=True,  # a leftover batch of 1 crashes batchnorm in training
                         num_workers=2,
                         collate_fn=collate_fn)
 

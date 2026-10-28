@@ -13,7 +13,7 @@ from models import MultimodalSentimentModel, MultimodalTrainer
 # from install_ffmpeg import install_ffmpeg
 
 SM_MODEL_DIR = os.environ.get("SM_MODEL_DIR", ".")
-KAGGLE_CHECKPOINT_DATASET = "saanvie/meld-checkpoints"
+KAGGLE_CHECKPOINT_DATASET = "saanvie/meld-checkpoints-v2"
 
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = "expandable_segments:True"
 
@@ -39,18 +39,35 @@ def push_checkpoint_to_kaggle(model_dir, dataset_slug, message):
     # Writes dataset metadata and pushes model_dir as a new dataset version.
     # check=False so a failed push (e.g. no internet, quota) never crashes training.
     meta = {
-        "title": "meld-checkpoints",
+        "title": dataset_slug.split("/")[-1],
         "id": dataset_slug,
         "licenses": [{"name": "CC0-1.0"}]
     }
     with open(os.path.join(model_dir, "dataset-metadata.json"), "w") as f:
         pyjson.dump(meta, f)
-    sp.run([
+    result = sp.run([
         "kaggle", "datasets", "version",
         "-p", model_dir,
         "-m", message,
         "-r", "zip"
     ], check=False)
+    # First push: dataset doesn't exist yet, so create it (private by default)
+    if result.returncode != 0:
+        print(f"Version push failed, trying to create dataset {dataset_slug}...")
+        result = sp.run([
+            "kaggle", "datasets", "create",
+            "-p", model_dir,
+            "-r", "zip"
+        ], check=False)
+    if result.returncode != 0:
+        print(f"WARNING: checkpoint push to Kaggle failed ({message})")
+
+
+def atomic_save(obj, path):
+    # Write to a temp file then rename, so a crash mid-save never leaves a corrupt .pth
+    tmp_path = path + ".tmp"
+    torch.save(obj, tmp_path)
+    os.replace(tmp_path, path)
 
 
 def main():
@@ -88,17 +105,37 @@ def main():
     model = MultimodalSentimentModel().to(device)
 
     # Resume from last checkpoint if it exists (survives session drops)
-    ckpt_path = os.path.join(args.model_dir, "model.pth")
+    ckpt_path = os.path.join(args.model_dir, "model.pth")  # latest epoch, for crash recovery
+    best_model_path = os.path.join(args.model_dir, "best_model.pth")  # lowest val loss, for actual use
     start_epoch = 0
     best_val_loss = float('inf')
+    best_epoch = None
+    checkpoint = None
     if os.path.exists(ckpt_path):
         checkpoint = torch.load(ckpt_path, map_location=device)
         model.load_state_dict(checkpoint["model_state"])
         start_epoch = checkpoint["epoch"] + 1
         best_val_loss = checkpoint["best_val_loss"]
+        best_epoch = checkpoint.get("best_epoch")
         print(f"Resumed from epoch {start_epoch}, best_val_loss={best_val_loss:.4f}")
 
+        # best_val_loss without the matching file means the restore step missed it,
+        # reset so the next epoch writes a fresh best instead of comparing to a lost model
+        if not os.path.exists(best_model_path):
+            print("WARNING: best_model.pth not found while resuming, previous best model is lost. "
+                  "Resetting best_val_loss so a new best gets saved.")
+            best_val_loss = float('inf')
+            best_epoch = None
+
     trainer = MultimodalTrainer(model, train_loader, val_loader)
+
+    # Restore optimizer + scheduler too, so lr reductions and adam state survive a resume
+    if checkpoint is not None:
+        if "optimizer_state" in checkpoint:
+            trainer.optimizer.load_state_dict(checkpoint["optimizer_state"])
+        if "scheduler_state" in checkpoint:
+            trainer.scheduler.load_state_dict(checkpoint["scheduler_state"])
+        print("Restored optimizer and scheduler state")
 
     # Resume metrics history too, so it isn't reset on a crash/resume
     metrics_path = os.path.join(args.model_dir, "metrics_history.json")
@@ -142,15 +179,30 @@ def main():
             memory_used = torch.cuda.max_memory_allocated() / 1024**3
             print(f"Peak GPU memory used: {memory_used:.2f} GB")
 
-        # Save every epoch (not just best) so a resume never loses progress
+        # Best model: only overwritten when val loss improves
         if val_loss["total"] < best_val_loss:
             best_val_loss = val_loss["total"]
-        torch.save({
+            best_epoch = epoch
+            atomic_save({
+                "epoch": epoch,
+                "model_state": model.state_dict(),
+                "val_loss": best_val_loss,
+                "val_metrics": val_metrics,
+            }, best_model_path)
+            print(f"New best model at epoch {epoch} (val loss {best_val_loss:.4f})")
+
+        # Latest checkpoint: saved every epoch so a resume never loses progress
+        atomic_save({
             "epoch": epoch,
             "model_state": model.state_dict(),
             "optimizer_state": trainer.optimizer.state_dict(),
+            "scheduler_state": trainer.scheduler.state_dict(),
             "best_val_loss": best_val_loss,
+            "best_epoch": best_epoch,
         }, ckpt_path)
+
+        metrics_data["best_epoch"] = best_epoch
+        metrics_data["best_val_loss"] = best_val_loss
 
         # Persist metrics history as JSON for later analysis/plotting
         with open(metrics_path, "w") as f:
